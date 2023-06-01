@@ -1,7 +1,7 @@
 package utils
 
 import (
-	g "github.com/gosnmp/gosnmp"
+	"github.com/gosnmp/gosnmp"
 	"log"
 	"pluginengine/consts"
 )
@@ -15,19 +15,19 @@ func Discovery(ip string) (status bool, err any) {
 		}
 	}()
 
-	g.Default.Target = ip
+	gosnmp.Default.Target = ip
 
 	//if ip address is reachable or not will not
 	//be known until we start to send packets in UDP
 	//so this line will be happily executed even if ip is not correct
-	err = g.Default.Connect()
+	err = gosnmp.Default.Connect()
 	if err != nil {
 		log.Fatalf("Discovery Connect() err: %v", err)
 		return false, err
 	}
-	defer g.Default.Conn.Close()
+	defer gosnmp.Default.Conn.Close()
 
-	_, err = g.Default.Get([]string{consts.ScalarMetrics["system.name"]})
+	_, err = gosnmp.Default.Get([]string{consts.ScalarMetrics["system.name"]})
 	if err != nil {
 		log.Fatalf("Discovery Get() err: %v", err)
 		return false, err

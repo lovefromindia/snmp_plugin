@@ -1,30 +1,32 @@
 package utils
 
 import (
-	g "github.com/gosnmp/gosnmp"
+	"encoding/json"
+	"fmt"
+	"github.com/gosnmp/gosnmp"
 	"log"
 	"pluginengine/consts"
 )
 
-func Collect(ip string, metricType int) (result any, err any) {
+func Collect(ip string, metricType int) (result []byte, err any) {
 	defer func() {
 		if err = recover(); err != nil {
 			log.Fatalf("Collect Function err: %v", err)
 		}
 	}()
 
-	g.Default.Target = ip
+	gosnmp.Default.Target = ip
 
 	//if ip address is reachable or not will not
 	//be known until we start to send packets in UDP
 	//so this line will be happily executed even if ip is not correct
-	err = g.Default.Connect()
+	err = gosnmp.Default.Connect()
 
 	if err != nil {
 		log.Fatalf("Collect Connect() err: %v", err)
-		return nil, err
+		return
 	}
-	defer g.Default.Conn.Close()
+	defer gosnmp.Default.Conn.Close()
 
 	switch metricType {
 	case 1:
@@ -34,17 +36,34 @@ func Collect(ip string, metricType int) (result any, err any) {
 			oids[i] = oid
 			i++
 		}
-		result, err = g.Default.Get(oids)
+		res, err := gosnmp.Default.Get(oids)
+		if err != nil {
+			log.Fatalf("Collect Get() err: %v", err)
+			return
+		}
+
+		result, err = json.Marshal(res)
 		if err != nil {
 			log.Fatalf("Collect Get() err: %v", err)
 			return nil, err
 		}
+
 	case 2:
 		for oid := range consts.InstanceMetrics {
 
-			//TODO: make callback func for each
-			var walkFunc = func() {}
-			err = g.Default.BulkWalk(oid, walkFunc)
+			//callback while walk each value of instance metric
+			var walkFunc = func(pdu gosnmp.SnmpPDU) error {
+				fmt.Printf("%s = ", pdu.Name)
+				switch pdu.Type {
+				case gosnmp.OctetString:
+					b := pdu.Value.([]byte)
+					fmt.Printf("STRING: %s\n", string(b))
+				default:
+					fmt.Printf("TYPE %d: %d\n", pdu.Type, gosnmp.ToBigInt(pdu.Value))
+				}
+				return nil
+			}
+			err = gosnmp.Default.BulkWalk(oid, walkFunc)
 
 			if err != nil {
 				log.Fatalf("Collect BulkWalk(%s) err: %v", oid, err)
@@ -56,7 +75,5 @@ func Collect(ip string, metricType int) (result any, err any) {
 
 	}
 	//TODO write function to transform result
-	return transformResult(result), nil
+	return (result), nil
 }
-
-func walkFunc()
