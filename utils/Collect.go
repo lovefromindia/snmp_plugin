@@ -1,79 +1,107 @@
 package utils
 
 import (
-	"encoding/json"
 	"fmt"
 	"github.com/gosnmp/gosnmp"
 	"log"
+	"net"
 	"pluginengine/consts"
+	"strings"
+	"sync"
 )
 
-func Collect(ip string, metricType int) (result []byte, err any) {
-	defer func() {
-		if err = recover(); err != nil {
-			log.Fatalf("Collect Function err: %v", err)
-		}
-	}()
-
-	gosnmp.Default.Target = ip
+func Collect(snmp *gosnmp.GoSNMP) (result map[string]interface{}, err error) {
+	result = make(map[string]interface{})
 
 	//if ip address is reachable or not will not
 	//be known until we start to send packets in UDP
 	//so this line will be happily executed even if ip is not correct
-	err = gosnmp.Default.Connect()
+	err = snmp.Connect()
 
 	if err != nil {
-		log.Fatalf("Collect Connect() err: %v", err)
-		return
+		return result, fmt.Errorf("connect() in Collect function failed: %v", err)
 	}
-	defer gosnmp.Default.Conn.Close()
 
-	switch metricType {
-	case 1:
+	defer func(Conn net.Conn) {
+		tempErr := Conn.Close()
+		if tempErr != nil {
+			err = fmt.Errorf("close() in Collect function failed: %v", tempErr)
+		}
+	}(snmp.Conn)
+
+	//this channel will be used by both goroutines
+	//to send data to this function to aggregate both
+	//goroutine data
+	var sharedResult = make(chan interface{})
+
+	var wg sync.WaitGroup
+	wg.Add(2)
+
+	go func(wg *sync.WaitGroup) {
+		wg.Wait()
+		close(sharedResult)
+	}(&wg)
+
+	//getting scalar oids
+	go func(snmp *gosnmp.GoSNMP, wg *sync.WaitGroup) {
+		defer wg.Done()
+		scalarOIDS := make([]string, len(consts.ScalarMetrics))
 		i := 0
-		var oids = make([]string, len(consts.ScalarMetrics))
-		for oid := range consts.ScalarMetrics {
-			oids[i] = oid
+		for key := range consts.ScalarMetrics {
+			scalarOIDS[i] = key
 			i++
 		}
-		res, err := gosnmp.Default.Get(oids)
+		res, err := snmp.Get(scalarOIDS)
+		var scalarResult = make(map[string]interface{})
 		if err != nil {
-			log.Fatalf("Collect Get() err: %v", err)
-			return
-		}
-
-		result, err = json.Marshal(res)
-		if err != nil {
-			log.Fatalf("Collect Get() err: %v", err)
-			return nil, err
-		}
-
-	case 2:
-		for oid := range consts.InstanceMetrics {
-
-			//callback while walk each value of instance metric
-			var walkFunc = func(pdu gosnmp.SnmpPDU) error {
-				fmt.Printf("%s = ", pdu.Name)
-				switch pdu.Type {
-				case gosnmp.OctetString:
-					b := pdu.Value.([]byte)
-					fmt.Printf("STRING: %s\n", string(b))
-				default:
-					fmt.Printf("TYPE %d: %d\n", pdu.Type, gosnmp.ToBigInt(pdu.Value))
-				}
-				return nil
+			log.Printf("get() in Collect function failed: %v", err)
+			for key := range consts.ScalarMetrics {
+				scalarResult[key] = nil
 			}
-			err = gosnmp.Default.BulkWalk(oid, walkFunc)
+		} else {
+			mapOIDResult(res, scalarResult, consts.METRIC_TYPE_SCALAR)
+		}
 
+		//sending group type to easily identify at other end of channel
+		sharedResult <- map[string]interface{}{"group": "scalar", "result": scalarResult}
+	}(snmp, &wg)
+
+	//getting instance oids
+	go func(snmp *gosnmp.GoSNMP, wg *sync.WaitGroup) {
+		defer wg.Done()
+
+		var instanceResult = make([]map[string]string, 100)
+
+		//for each of instance oid, we will call BulKWalk
+		for rootOID := range consts.InstanceMetrics {
+			err = snmp.BulkWalk(rootOID, func(dataUnit gosnmp.SnmpPDU) error {
+
+			})
 			if err != nil {
-				log.Fatalf("Collect BulkWalk(%s) err: %v", oid, err)
+				log.Printf("bulkWalk() for OID: %s failed", rootOID)
+			} else {
+
 			}
 		}
 
-	default:
-		panic("Invalid Metric Group")
+		//sending group type to easily identify at other end of channel
+		sharedResult <- map[string]interface{}{"group": "instance", "result": instanceResult}
+	}(snmp, &wg)
 
+	//gathering results from channels polling different groups
+	for res := range sharedResult {
+		grpType := res.(map[string]interface{})["group"].(string)
+		switch {
+		case strings.EqualFold(grpType, "scalar"):
+			for oid, val := range res.(map[string]interface{})["result"].(map[string]interface{}) {
+				result[oid] = val
+			}
+		case strings.EqualFold(grpType, "instance"):
+
+		default:
+			log.Print("unknown group type received in Collect() function")
+		}
 	}
-	//TODO write function to transform result
-	return (result), nil
+
+	return result, nil
 }

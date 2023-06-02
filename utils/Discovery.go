@@ -1,36 +1,37 @@
 package utils
 
 import (
+	"fmt"
 	"github.com/gosnmp/gosnmp"
-	"log"
+	"net"
 	"pluginengine/consts"
 )
 
-// Discovery this function will get scalar oid value to check if network device is responding
-func Discovery(ip string) (status bool, err any) {
-	status = false
-	defer func() {
-		if err = recover(); err != nil {
-			log.Fatalf("Discovery Function err: %v", err)
-		}
-	}()
-
-	gosnmp.Default.Target = ip
+// Discovery : this function will get scalar oid value to check if network device is responding
+func Discovery(snmp *gosnmp.GoSNMP) (result map[string]interface{}, err error) {
+	result = make(map[string]interface{})
 
 	//if ip address is reachable or not will not
 	//be known until we start to send packets in UDP
 	//so this line will be happily executed even if ip is not correct
-	err = gosnmp.Default.Connect()
+	err = snmp.Connect()
 	if err != nil {
-		log.Fatalf("Discovery Connect() err: %v", err)
-		return false, err
+		return result, fmt.Errorf("connect() in Discovery function failed: %v", err)
 	}
-	defer gosnmp.Default.Conn.Close()
 
-	_, err = gosnmp.Default.Get([]string{consts.ScalarMetrics["system.name"]})
+	defer func(Conn net.Conn) {
+		tempErr := Conn.Close()
+		if tempErr != nil {
+			err = fmt.Errorf("close() in Discovery function failed: %v", tempErr)
+		}
+	}(snmp.Conn)
+
+	//system.name oid to check if results are coming
+	//to confirm that device is responding
+	res, err := snmp.Get([]string{".1.3.6.1.2.1.1.5.0"})
 	if err != nil {
-		log.Fatalf("Discovery Get() err: %v", err)
-		return false, err
+		return result, fmt.Errorf("get() in Discovery function failed: %v", err)
 	}
-	return true, nil
+	mapOIDResult(res, result, consts.METRIC_TYPE_SCALAR)
+	return result, nil
 }
