@@ -8,15 +8,17 @@ import (
 )
 
 // Discovery : this function will get scalar oid value to check if network device is responding
-func Discovery(snmp *gosnmp.GoSNMP) (result map[string]interface{}, err error) {
-	result = make(map[string]interface{})
+func Discovery(snmp gosnmp.GoSNMP) map[string]interface{} {
+	result := make(map[string]interface{})
 
 	//if ip address is reachable or not will not
 	//be known until we start to send packets in UDP
 	//so this line will be happily executed even if ip is not correct
-	err = snmp.Connect()
+	err := snmp.Connect()
 	if err != nil {
-		return result, fmt.Errorf("connect() in Discovery function failed: %v", err)
+		result["status"] = "failed"
+		result["message"] = fmt.Errorf("connect() in Discovery function failed: %v", err)
+		return result
 	}
 
 	defer func(Conn net.Conn) {
@@ -28,10 +30,5 @@ func Discovery(snmp *gosnmp.GoSNMP) (result map[string]interface{}, err error) {
 
 	//system.name oid to check if results are coming
 	//to confirm that device is responding
-	res, err := snmp.Get([]string{".1.3.6.1.2.1.1.5.0"})
-	if err != nil {
-		return result, fmt.Errorf("get() in Discovery function failed: %v", err)
-	}
-	mapOIDResult(res, result, consts.METRIC_TYPE_SCALAR)
-	return result, nil
+	return getScalarOID(&snmp, []string{consts.MetricToScalarOid["system.name"]})
 }

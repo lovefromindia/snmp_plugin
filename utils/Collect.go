@@ -1,25 +1,28 @@
 package utils
 
 import (
+	"encoding/json"
 	"fmt"
 	"github.com/gosnmp/gosnmp"
-	"log"
 	"net"
 	"pluginengine/consts"
 	"strings"
 	"sync"
 )
 
-func Collect(snmp *gosnmp.GoSNMP) (result map[string]interface{}, err error) {
-	result = make(map[string]interface{})
+// Collect : this will get all oids value
+func Collect(snmp gosnmp.GoSNMP) map[string]interface{} {
+	result := make(map[string]interface{})
 
 	//if ip address is reachable or not will not
 	//be known until we start to send packets in UDP
 	//so this line will be happily executed even if ip is not correct
-	err = snmp.Connect()
+	err := snmp.Connect()
 
 	if err != nil {
-		return result, fmt.Errorf("connect() in Collect function failed: %v", err)
+		result["status"] = "failed"
+		result["message"] = fmt.Errorf("connect() in Collect function failed: %v", err)
+		return result
 	}
 
 	defer func(Conn net.Conn) {
@@ -29,79 +32,57 @@ func Collect(snmp *gosnmp.GoSNMP) (result map[string]interface{}, err error) {
 		}
 	}(snmp.Conn)
 
-	//this channel will be used by both goroutines
-	//to send data to this function to aggregate both
-	//goroutine data
-	var sharedResult = make(chan interface{})
-
 	var wg sync.WaitGroup
 	wg.Add(2)
 
-	go func(wg *sync.WaitGroup) {
-		wg.Wait()
-		close(sharedResult)
-	}(&wg)
-
 	//getting scalar oids
+	var scalarResult = make(map[string]interface{})
 	go func(snmp *gosnmp.GoSNMP, wg *sync.WaitGroup) {
 		defer wg.Done()
-		scalarOIDS := make([]string, len(consts.ScalarMetrics))
+		scalarOIDS := make([]string, len(consts.ScalarOidToMetric))
 		i := 0
-		for key := range consts.ScalarMetrics {
-			scalarOIDS[i] = key
+		for oid := range consts.ScalarOidToMetric {
+			scalarOIDS[i] = oid
 			i++
 		}
-		res, err := snmp.Get(scalarOIDS)
-		var scalarResult = make(map[string]interface{})
-		if err != nil {
-			log.Printf("get() in Collect function failed: %v", err)
-			for key := range consts.ScalarMetrics {
-				scalarResult[key] = nil
-			}
-		} else {
-			mapOIDResult(res, scalarResult, consts.METRIC_TYPE_SCALAR)
-		}
+		tempResult := getScalarOID(snmp, scalarOIDS)
 
-		//sending group type to easily identify at other end of channel
-		sharedResult <- map[string]interface{}{"group": "scalar", "result": scalarResult}
-	}(snmp, &wg)
+		//storing results in map for scalar metrics
+		for oid, val := range tempResult["result"].(map[string]interface{}) {
+			scalarResult[consts.ScalarOidToMetric[oid]] = val
+		}
+		scalarResult["status"] = "success"
+
+	}(&snmp, &wg)
 
 	//getting instance oids
+	var instanceResult = make(map[string]interface{})
+	instanceResult["result"] = make(map[string]interface{})
 	go func(snmp *gosnmp.GoSNMP, wg *sync.WaitGroup) {
 		defer wg.Done()
-
-		var instanceResult = make([]map[string]string, 100)
-
-		//for each of instance oid, we will call BulKWalk
-		for rootOID := range consts.InstanceMetrics {
-			err = snmp.BulkWalk(rootOID, func(dataUnit gosnmp.SnmpPDU) error {
-
-			})
-			if err != nil {
-				log.Printf("bulkWalk() for OID: %s failed", rootOID)
-			} else {
-
-			}
+		for rootOid := range consts.InstanceOidToMetric {
+			getInstanceOID(snmp, rootOid, instanceResult)
 		}
+	}(&snmp, &wg)
 
-		//sending group type to easily identify at other end of channel
-		sharedResult <- map[string]interface{}{"group": "instance", "result": instanceResult}
-	}(snmp, &wg)
-
-	//gathering results from channels polling different groups
-	for res := range sharedResult {
-		grpType := res.(map[string]interface{})["group"].(string)
-		switch {
-		case strings.EqualFold(grpType, "scalar"):
-			for oid, val := range res.(map[string]interface{})["result"].(map[string]interface{}) {
-				result[oid] = val
-			}
-		case strings.EqualFold(grpType, "instance"):
-
-		default:
-			log.Print("unknown group type received in Collect() function")
+	wg.Wait()
+	//filling values of both scalarResult and instanceResult into main result map
+	result["status"] = "success"
+	result["result"] = make(map[string]interface{})
+	if strings.EqualFold(instanceResult["status"].(string), "success") {
+		result["result"].(map[string]interface{})["interfaces"] = make([]interface{}, 0)
+		for _, val := range instanceResult["result"].(map[string]interface{}) {
+			result["result"].(map[string]interface{})["interfaces"] = append(result["result"].(map[string]interface{})["interfaces"].([]interface{}), val)
 		}
 	}
 
-	return result, nil
+	if strings.EqualFold(scalarResult["status"].(string), "success") {
+		for oid, val := range scalarResult {
+			result["result"].(map[string]interface{})[oid] = val
+		}
+	}
+
+	val, err := json.Marshal(result)
+	fmt.Println(string(val))
+	return result
 }

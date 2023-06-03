@@ -10,6 +10,7 @@ import (
 	"strings"
 )
 
+// main gets single profile to poll for now
 func main() {
 
 	var result = make(map[string]interface{})
@@ -23,9 +24,7 @@ func main() {
 
 		//TODO:
 		//adding request context so that java(which has spawn this go exe)
-		//can understand to which profile output belongs to in case of multiple IPs
-
-		fmt.Println(result)
+		//can understand to which profile output belongs to in case of multiple IPs as command argument
 		res, _ := json.Marshal(result)
 		fmt.Println(string(res))
 
@@ -75,19 +74,13 @@ func main() {
 
 	switch {
 	case strings.EqualFold(functionType, "Discovery"):
-		res, err := utils.Discovery(gosnmp.Default)
-		if err != nil {
-			panic(err)
-		}
-		result["result"] = res
+		result = utils.Discovery(*gosnmp.Default)
 	case strings.EqualFold(functionType, "Collect"):
-		res, err := utils.Collect(gosnmp.Default)
+		result = utils.Collect(*gosnmp.Default)
 		if err != nil {
 			panic(err)
 		}
-		result["result"] = res
 	default:
 		panic("Unknown Function Type")
 	}
-
 }
