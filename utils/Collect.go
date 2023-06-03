@@ -1,7 +1,6 @@
 package utils
 
 import (
-	"encoding/json"
 	"fmt"
 	"github.com/gosnmp/gosnmp"
 	"net"
@@ -81,8 +80,5 @@ func Collect(snmp gosnmp.GoSNMP) map[string]interface{} {
 			result["result"].(map[string]interface{})[oid] = val
 		}
 	}
-
-	val, err := json.Marshal(result)
-	fmt.Println(string(val))
 	return result
 }
