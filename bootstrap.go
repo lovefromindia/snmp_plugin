@@ -52,9 +52,14 @@ func main() {
 
 		}
 
-		//TODO
+		//TODO --> DONE takes 'id' which can be used for differing between multiple credential profiles
 		//adding request context so that java(which has spawn this go exe)
 		//can understand to which profile output belongs to in case of multiple IPs as command argument
+
+		if strings.EqualFold(result["status"].(string), "failed") {
+			result["result"] = nil
+		}
+
 		res, _ := json.Marshal(result)
 
 		fmt.Println(string(res))
