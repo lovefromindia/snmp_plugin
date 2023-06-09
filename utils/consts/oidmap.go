@@ -1,5 +1,10 @@
 package consts
 
+//ips:
+//1) 172.16.8.2
+//2) 172.16.14.5
+//3) 172.16.14.61
+
 var ScalarOidToMetric = map[string]string{
 
 	".1.3.6.1.2.1.1.5.0": "system.name",
