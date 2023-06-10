@@ -13,7 +13,7 @@ import (
 // plugin
 // Input json format
 // {
-// "id":string(discovery id),
+// "id":string(discoveryId for discovery() and provisionId in case of polling()),
 // "ip":string(device ip),
 // "port":string,
 // "community":string(default: public),
@@ -24,7 +24,7 @@ import (
 
 // Output json format
 // {
-// "id":string(discovery id),
+// "id":string(reflect back what came in as id),
 // "result": {
 //			"status": "(success/failed)",
 //			"message" : (plugin side message),
