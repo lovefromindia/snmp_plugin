@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/gosnmp/gosnmp"
 	"os"
+	"pluginengine/constants"
 	"pluginengine/utils"
 	"strconv"
 	"strings"
@@ -44,11 +45,11 @@ func main() {
 
 			//discovery profile id will be added on start itself
 			//so no need to add here
-			result["result"] = nil
+			result[constants.RESULT] = nil
 
-			result["status"] = "failed"
+			result[constants.STATUS] = constants.FAILED
 
-			result["error"] = fmt.Sprintf("%v", err)
+			result[constants.MESSAGE] = fmt.Sprintf("%v", err)
 
 		}
 
@@ -56,12 +57,13 @@ func main() {
 		//adding request context so that java(which has spawn this go exe)
 		//can understand to which profile output belongs to in case of multiple IPs as command argument
 
-		if strings.EqualFold(result["status"].(string), "failed") {
-			result["result"] = nil
+		if strings.EqualFold(result[constants.STATUS].(string), constants.FAILED) {
+			result[constants.RESULT] = nil
 		}
 
 		res, _ := json.Marshal(result)
 
+		//giving plugin output here
 		fmt.Println(string(res))
 
 	}()
@@ -146,6 +148,8 @@ func main() {
 	gosnmp.Default.Port = uint16(port)
 
 	gosnmp.Default.Community = community
+
+	gosnmp.Default.Retries = 0
 
 	switch {
 

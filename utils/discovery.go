@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"github.com/gosnmp/gosnmp"
 	"net"
-	"pluginengine/utils/consts"
+	"pluginengine/constants"
 )
 
 // Discovery : this function will get scalar oid value to check if network device is responding
@@ -39,23 +39,23 @@ func Discovery(snmp gosnmp.GoSNMP) map[string]interface{} {
 
 	}(snmp.Conn)
 
-	result["result"] = make(map[string]interface{})
+	result[constants.RESULT] = make(map[string]interface{})
 
-	res, err := snmp.Get([]string{consts.MetricToScalarOid["system.name"]})
+	res, err := snmp.Get([]string{MetricToScalarOid["system.name"]})
 
 	if err != nil {
 
-		return GetDefaultResultMap("failed", fmt.Errorf("getScalarOID function failed: %v", err))
+		return GetDefaultResultMap(constants.FAILED, fmt.Errorf("getScalarOID function failed: %v", err))
 
 	}
 
 	for _, val := range res.Variables {
 
-		result["result"].(map[string]interface{})[consts.ScalarOidToMetric[val.Name]] = SnmpTypeConversion(val)
+		result[constants.RESULT].(map[string]interface{})[ScalarOidToMetric[val.Name]] = SnmpTypeConversion(val)
 
 	}
 
-	result["status"] = "success"
+	result[constants.RESULT] = constants.SUCCESS
 
 	return result
 

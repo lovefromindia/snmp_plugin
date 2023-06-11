@@ -1,4 +1,4 @@
-package consts
+package utils
 
 //ips:
 //1) 172.16.8.2

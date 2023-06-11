@@ -4,8 +4,15 @@ import (
 	"fmt"
 	"github.com/gosnmp/gosnmp"
 	"net"
-	"pluginengine/utils/consts"
+	"pluginengine/constants"
 	"strings"
+)
+
+const (
+	INTERFACE = "interface"
+	SYSTEM    = "system"
+	SCALAR    = "scalar"
+	INSTANCE  = "instance"
 )
 
 // Collect : this will get all oid value
@@ -20,7 +27,7 @@ func Collect(snmp gosnmp.GoSNMP, metricType string) map[string]interface{} {
 
 	if err != nil {
 
-		return GetDefaultResultMap("failed", fmt.Errorf("error in collect() method: %v", err))
+		return GetDefaultResultMap(constants.FAILED, fmt.Errorf("error in collect() method: %v", err))
 
 	}
 
@@ -40,16 +47,16 @@ func Collect(snmp gosnmp.GoSNMP, metricType string) map[string]interface{} {
 	switch {
 
 	//both v1 and v2c can use snmp.get()
-	case strings.EqualFold(metricType, "scalar"):
+	case strings.EqualFold(metricType, SCALAR):
 
 		//making map for sending system oid data
-		result["system"] = make(map[string]interface{})
+		result[SYSTEM] = make(map[string]interface{})
 
-		scalarOIDS := make([]string, len(consts.ScalarOidToMetric))
+		scalarOIDS := make([]string, len(ScalarOidToMetric))
 
 		i := 0
 
-		for oid := range consts.ScalarOidToMetric {
+		for oid := range ScalarOidToMetric {
 
 			scalarOIDS[i] = oid
 
@@ -61,40 +68,47 @@ func Collect(snmp gosnmp.GoSNMP, metricType string) map[string]interface{} {
 
 		if err != nil {
 
-			return GetDefaultResultMap("failed", fmt.Errorf("getScalarOID function failed: %v", err))
+			return GetDefaultResultMap(constants.FAILED, fmt.Errorf("getScalarOID function failed: %v", err))
 
 		}
 
 		for _, val := range data.Variables {
 
-			result["system"].(map[string]interface{})[consts.ScalarOidToMetric[val.Name]] = SnmpTypeConversion(val)
+			result[SYSTEM].(map[string]interface{})[ScalarOidToMetric[val.Name]] = SnmpTypeConversion(val)
 
 		}
 
-		result["status"] = "success"
+		result[constants.STATUS] = constants.SUCCESS
 
 		return result
 
-	case strings.EqualFold(metricType, "instance"):
+	case strings.EqualFold(metricType, INSTANCE):
 
 		//making map for storing interface oids data
 		//with interface index as keys
 		tempMap := make(map[string]interface{})
 
+		errors := make([]string, 0)
+
 		//walkOrBulkWalk: this variable is function pointer
 		//to either BulkWalk or Walk based on snmp version
 		var walkOrBulkWalk = snmp.BulkWalk
+
 		if snmp.Version == gosnmp.Version1 {
+
 			walkOrBulkWalk = snmp.Walk
+
 		} else if snmp.Version == gosnmp.Version2c {
+
 			walkOrBulkWalk = snmp.BulkWalk
+
 		} else {
 			return GetDefaultResultMap("failed", fmt.Errorf("unsupported Snmp Version"))
 		}
 
-		for rootOid := range consts.InstanceOidToMetric {
+		for rootOid := range InstanceOidToMetric {
 
-			walkOrBulkWalk(rootOid, func(pdu gosnmp.SnmpPDU) error {
+			err = walkOrBulkWalk(rootOid, func(pdu gosnmp.SnmpPDU) error {
 
 				tempArr := strings.Split(pdu.Name, ".")
 
@@ -111,32 +125,53 @@ func Collect(snmp gosnmp.GoSNMP, metricType string) map[string]interface{} {
 
 				}
 
-				tempMap[interfaceIndex].(map[string]interface{})[consts.InstanceOidToMetric[rootOid]] = SnmpTypeConversion(pdu)
+				tempMap[interfaceIndex].(map[string]interface{})[InstanceOidToMetric[rootOid]] = SnmpTypeConversion(pdu)
 
 				return nil
 
 			})
 
+			//store err for single rootOid(since we are in loop)
+			if err != nil {
+
+				errors = append(errors, fmt.Sprintf("%v", err))
+
+			}
+
 		}
 
-		result["status"] = "success"
+		//if all rootOid fetch have some errors then its failed
+		if len(errors) >= len(InstanceOidToMetric) {
 
-		result["interface"] = make([]interface{}, len(tempMap))
+			result[constants.STATUS] = constants.FAILED
+
+		} else {
+
+			result[constants.STATUS] = constants.SUCCESS
+
+		}
+
+		//store errors (if any)
+		result[constants.MESSAGE] = strings.Join(errors, "\n") //join() converts array of errors into string
+		// as java side "message" is string and not json array
+
+		result[INTERFACE] = make([]interface{}, len(tempMap))
 
 		i := 0
 
 		for _, data := range tempMap {
 
-			result["interface"].([]interface{})[i] = data
+			result[INTERFACE].([]interface{})[i] = data
 
 			i++
 
 		}
 
 	default:
-		return GetDefaultResultMap("failed", fmt.Errorf("unknown metricType"))
+		return GetDefaultResultMap(constants.FAILED, fmt.Errorf("unknown metricType"))
 
 	}
 
 	return result
+
 }

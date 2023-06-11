@@ -4,7 +4,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"github.com/gosnmp/gosnmp"
-	"pluginengine/utils/consts"
+	"pluginengine/constants"
 	"strings"
 )
 
@@ -16,7 +16,7 @@ func SnmpTypeConversion(pdu gosnmp.SnmpPDU) (result string) {
 	case gosnmp.OctetString:
 
 		//checks for physical address oid prefix
-		if strings.HasPrefix(pdu.Name, consts.MetricToInstanceOid["interface.physical.address"]) {
+		if strings.HasPrefix(pdu.Name, MetricToInstanceOid["interface.physical.address"]) {
 
 			result = hex.EncodeToString(pdu.Value.([]byte))
 
@@ -41,9 +41,9 @@ func GetDefaultResultMap(status string, err error) map[string]interface{} {
 
 	result := make(map[string]interface{})
 
-	result["status"] = status
+	result[constants.STATUS] = status
 
-	result["message"] = fmt.Sprintf("%v", err)
+	result[constants.MESSAGE] = fmt.Sprintf("%v", err)
 
 	return result
 
