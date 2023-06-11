@@ -36,6 +36,8 @@ import (
 
 func main() {
 
+	var id string
+
 	var result = make(map[string]interface{})
 
 	//at end, this function will print response object to stdout
@@ -56,6 +58,7 @@ func main() {
 		//TODO --> DONE takes 'id' which can be used for differing between multiple credential profiles
 		//adding request context so that java(which has spawn this go exe)
 		//can understand to which profile output belongs to in case of multiple IPs as command argument
+		result["id"] = id
 
 		if strings.EqualFold(result[constants.STATUS].(string), constants.FAILED) {
 			result[constants.RESULT] = nil
@@ -80,9 +83,6 @@ func main() {
 
 	//discovery id
 	id, ok := jsonArgs["id"].(string)
-
-	//adding so that it gets passed at end with result
-	result["id"] = id
 
 	if !ok {
 
