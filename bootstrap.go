@@ -149,8 +149,6 @@ func main() {
 
 	gosnmp.Default.Community = community
 
-	gosnmp.Default.Retries = 0
-
 	switch {
 
 	case strings.EqualFold(version, "v1"):
