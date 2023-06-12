@@ -20,6 +20,9 @@ func Collect(snmp gosnmp.GoSNMP, metricType string) map[string]interface{} {
 
 	result := make(map[string]interface{})
 
+	//where oid results will be stored
+	result[constants.RESULT] = make(map[string]interface{})
+
 	//if ip address is reachable or not will not
 	//be known until we start to send packets in UDP
 	//so this line will be happily executed even if ip is not correct
@@ -50,7 +53,7 @@ func Collect(snmp gosnmp.GoSNMP, metricType string) map[string]interface{} {
 	case strings.EqualFold(metricType, SCALAR):
 
 		//making map for sending system oid data
-		result[SYSTEM] = make(map[string]interface{})
+		result[constants.RESULT].(map[string]interface{})[SYSTEM] = make(map[string]interface{})
 
 		scalarOIDS := make([]string, len(ScalarOidToMetric))
 
@@ -74,7 +77,7 @@ func Collect(snmp gosnmp.GoSNMP, metricType string) map[string]interface{} {
 
 		for _, val := range data.Variables {
 
-			result[SYSTEM].(map[string]interface{})[ScalarOidToMetric[val.Name]] = SnmpTypeConversion(val)
+			result[constants.RESULT].(map[string]interface{})[SYSTEM].(map[string]interface{})[ScalarOidToMetric[val.Name]] = SnmpTypeConversion(val)
 
 		}
 
@@ -155,13 +158,13 @@ func Collect(snmp gosnmp.GoSNMP, metricType string) map[string]interface{} {
 		result[constants.MESSAGE] = strings.Join(errors, "\n") //join() converts array of errors into string
 		// as java side "message" is string and not json array
 
-		result[INTERFACE] = make([]interface{}, len(tempMap))
+		result[constants.RESULT].(map[string]interface{})[INTERFACE] = make([]interface{}, len(tempMap))
 
 		i := 0
 
 		for _, data := range tempMap {
 
-			result[INTERFACE].([]interface{})[i] = data
+			result[constants.RESULT].(map[string]interface{})[INTERFACE].([]interface{})[i] = data
 
 			i++
 

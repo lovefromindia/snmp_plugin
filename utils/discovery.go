@@ -55,7 +55,7 @@ func Discovery(snmp gosnmp.GoSNMP) map[string]interface{} {
 
 	}
 
-	result[constants.RESULT] = constants.SUCCESS
+	result[constants.STATUS] = constants.SUCCESS
 
 	return result
 
