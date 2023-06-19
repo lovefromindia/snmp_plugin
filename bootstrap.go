@@ -5,8 +5,9 @@ import (
 	"fmt"
 	"github.com/gosnmp/gosnmp"
 	"os"
+	"pluginengine/collect"
 	"pluginengine/constants"
-	"pluginengine/utils"
+	"pluginengine/discovery"
 	"strconv"
 	"strings"
 )
@@ -47,7 +48,7 @@ func main() {
 
 			//discovery profile id will be added on start itself
 			//so no need to add here
-			result[constants.RESULT] = nil
+			delete(result, constants.RESULT)
 
 			result[constants.STATUS] = constants.FAILED
 
@@ -61,7 +62,7 @@ func main() {
 		result["id"] = id
 
 		if strings.EqualFold(result[constants.STATUS].(string), constants.FAILED) {
-			result[constants.RESULT] = nil
+			delete(result, constants.RESULT)
 		}
 
 		res, _ := json.Marshal(result)
@@ -149,6 +150,8 @@ func main() {
 
 	gosnmp.Default.Community = community
 
+	gosnmp.Default.Retries = 0
+
 	switch {
 
 	case strings.EqualFold(version, "v1"):
@@ -171,10 +174,10 @@ func main() {
 
 	//discovery will be same for v1 and v2c version as both will be using snmp get
 	case strings.EqualFold(functionType, "discovery"):
-		result = utils.Discovery(*gosnmp.Default)
+		result = discovery.Discovery(*gosnmp.Default)
 
 	case strings.EqualFold(functionType, "collect"):
-		result = utils.Collect(*gosnmp.Default, metricType)
+		result = collect.Collect(*gosnmp.Default, metricType)
 
 	}
 

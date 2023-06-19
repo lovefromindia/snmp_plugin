@@ -1,10 +1,11 @@
-package utils
+package collect
 
 import (
 	"fmt"
 	"github.com/gosnmp/gosnmp"
 	"net"
 	"pluginengine/constants"
+	"pluginengine/utils"
 	"strings"
 )
 
@@ -30,7 +31,7 @@ func Collect(snmp gosnmp.GoSNMP, metricType string) map[string]interface{} {
 
 	if err != nil {
 
-		return GetDefaultResultMap(constants.FAILED, fmt.Errorf("error in collect() method: %v", err))
+		return utils.GetDefaultResultMap(constants.FAILED, fmt.Errorf("error in collect() method: %v", err))
 
 	}
 
@@ -55,11 +56,11 @@ func Collect(snmp gosnmp.GoSNMP, metricType string) map[string]interface{} {
 		//making map for sending system oid data
 		result[constants.RESULT].(map[string]interface{})[SYSTEM] = make(map[string]interface{})
 
-		scalarOIDS := make([]string, len(ScalarOidToMetric))
+		scalarOIDS := make([]string, len(utils.ScalarOidToMetric))
 
 		i := 0
 
-		for oid := range ScalarOidToMetric {
+		for oid := range utils.ScalarOidToMetric {
 
 			scalarOIDS[i] = oid
 
@@ -71,13 +72,13 @@ func Collect(snmp gosnmp.GoSNMP, metricType string) map[string]interface{} {
 
 		if err != nil {
 
-			return GetDefaultResultMap(constants.FAILED, fmt.Errorf("getScalarOID function failed: %v", err))
+			return utils.GetDefaultResultMap(constants.FAILED, fmt.Errorf("getScalarOID function failed: %v", err))
 
 		}
 
 		for _, val := range data.Variables {
 
-			result[constants.RESULT].(map[string]interface{})[SYSTEM].(map[string]interface{})[ScalarOidToMetric[val.Name]] = SnmpTypeConversion(val)
+			result[constants.RESULT].(map[string]interface{})[SYSTEM].(map[string]interface{})[utils.ScalarOidToMetric[val.Name]] = utils.SnmpTypeConversion(val)
 
 		}
 
@@ -106,10 +107,10 @@ func Collect(snmp gosnmp.GoSNMP, metricType string) map[string]interface{} {
 			walkOrBulkWalk = snmp.BulkWalk
 
 		} else {
-			return GetDefaultResultMap("failed", fmt.Errorf("unsupported Snmp Version"))
+			return utils.GetDefaultResultMap("failed", fmt.Errorf("unsupported Snmp Version"))
 		}
 
-		for rootOid := range InstanceOidToMetric {
+		for rootOid := range utils.InstanceOidToMetric {
 
 			err = walkOrBulkWalk(rootOid, func(pdu gosnmp.SnmpPDU) error {
 
@@ -128,7 +129,7 @@ func Collect(snmp gosnmp.GoSNMP, metricType string) map[string]interface{} {
 
 				}
 
-				tempMap[interfaceIndex].(map[string]interface{})[InstanceOidToMetric[rootOid]] = SnmpTypeConversion(pdu)
+				tempMap[interfaceIndex].(map[string]interface{})[utils.InstanceOidToMetric[rootOid]] = utils.SnmpTypeConversion(pdu)
 
 				return nil
 
@@ -144,7 +145,7 @@ func Collect(snmp gosnmp.GoSNMP, metricType string) map[string]interface{} {
 		}
 
 		//if all rootOid fetch have some errors then its failed
-		if len(errors) >= len(InstanceOidToMetric) {
+		if len(errors) >= len(utils.InstanceOidToMetric) {
 
 			result[constants.STATUS] = constants.FAILED
 
@@ -171,7 +172,7 @@ func Collect(snmp gosnmp.GoSNMP, metricType string) map[string]interface{} {
 		}
 
 	default:
-		return GetDefaultResultMap(constants.FAILED, fmt.Errorf("unknown metricType"))
+		return utils.GetDefaultResultMap(constants.FAILED, fmt.Errorf("unknown metricType"))
 
 	}
 
